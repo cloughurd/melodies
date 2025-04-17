@@ -95,7 +95,7 @@ class NfIsf(TransformerMixin, BaseEstimator):
         counts = self.bag.fit_transform(X)
         # sum number of songs that contain each note
         # +1 to avoid /0 error
-        songs_per_note = np.sum(counts > 0, axis=1, keepdims=True) +1
+        songs_per_note = np.sum(counts > 0, axis=0, keepdims=True) +1
         self.inv_song_freq_ = np.log((counts.shape[0] +1) / songs_per_note)
         return self
 
