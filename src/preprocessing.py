@@ -3,6 +3,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 from sklearn.base import TransformerMixin, BaseEstimator
+from sklearn.utils import resample
 import mido
 import logging
 from collections import Counter
@@ -20,7 +21,7 @@ def load_midi_to_df(filename: Path) -> pd.DataFrame:
 def load_midi_to_df_norm(filename: Path, fixed_tempo: int = 500000, max_duration: float = 120.0) -> pd.DataFrame:
     """
     Normalizes the songs to the same tempo and duration.
-    This function takes a file as an input and normalizes it, 
+    This function takes a file as an input and normalizes it,
     to output a dataframe with specified tempo and duration.
     """
     mid = mido.MidiFile(filename)
@@ -168,7 +169,7 @@ class NfIsf(TransformerMixin, BaseEstimator):
 
 class BagOfChords(TransformerMixin, BaseEstimator):
     """
-    Vectorizes MIDI dataframes by chord frequency. 
+    Vectorizes MIDI dataframes by chord frequency.
 
     Transformer that converts MIDI note dataframes into a fixed-size vector representing the frequency
     of chords (simultaneously played notes) within each song.
@@ -179,7 +180,9 @@ class BagOfChords(TransformerMixin, BaseEstimator):
 
     def fit(self, X: list[pd.DataFrame], y=None):
         chord_counter = Counter()
-        for df in X:
+        for i, df in enumerate(X):
+            if i % (len(X) // 20) == 0:
+                print(f'Loaded {i} of {len(X)}')
             chords = self._extract_chords(df)
             chord_counter.update(chords)
         most_common = chord_counter.most_common(self.vocab_size) # Keep only the top N most common chords
@@ -217,11 +220,51 @@ class BagOfChords(TransformerMixin, BaseEstimator):
             chords.append(tuple(sorted(current_chord)))
         return chords
 
+class BagOfChords2(TransformerMixin, BaseEstimator):
+    """
+    Vectorizes MIDI dataframes by chord frequency.
+
+    Transformer that converts MIDI note dataframes into a fixed-size vector representing the frequency
+    of chords (simultaneously played notes) within each song.
+    """
+    def __init__(self, time_threshold: int = 30, vocab_size: int = 300, normalize: bool = True):
+        self.time_threshold = time_threshold
+        self.vocab_size = vocab_size
+        self.normalize = normalize
+
+    def fit(self, X: list[pd.DataFrame], y=None):
+        chord_lists = []
+        for i, df in enumerate(X):
+            if i % (len(X) // 20) == 0:
+                print(f'Loaded {i} of {len(X)}')
+            chords = self._extract_chords(df)
+            chord_lists.append(chords)
+        most_common = pd.concat(chord_lists).value_counts()[:self.vocab_size]
+        self.vocab_ = most_common
+        return self
+
+    def transform(self, X: list[pd.DataFrame]) -> np.ndarray:
+        results = []
+        for df in X:
+            chords = self._extract_chords(df)
+            overlap = pd.merge(self.vocab_, chords.value_counts(), how='left', left_index=True, right_index=True)
+            chord_vector = overlap['count_y'].fillna(0)
+            if self.normalize:
+                chord_vector = chord_vector / np.sum(chord_vector)
+            results.append(chord_vector)
+        return np.array(results)
+
+    def _extract_chords(self, df: pd.DataFrame) -> List[str]:
+        new_chord = df['time_from_start']-df['time_from_start'].shift(1) > self.time_threshold
+        chord_id = new_chord.cumsum()
+        return df.groupby(chord_id).apply(lambda g: ','.join(g['note'].sort_values().astype(int).astype(str)))
+
+
 class MidiPathToPrettyMidi(TransformerMixin, BaseEstimator):
     """
     Transformer that loads MIDI file paths and converts them to PrettyMIDI objects.
 
-    Used to get MIDI features easily. 
+    Used to get MIDI features easily.
     """
     def __init__(self, data_dir: Path):
         self.data_dir = data_dir
@@ -278,3 +321,18 @@ class InstrumentAwareBoN(TransformerMixin, BaseEstimator):
                 song_vector.extend(notes)
             data.append(song_vector)
         return np.array(data)
+
+
+class Downsampler(TransformerMixin, BaseEstimator):
+    def __init__(self, random_state=None, n_samples: int = 200):
+        self.random_state = random_state
+        self.n_samples = n_samples
+
+    def fit(self, X, y=None):
+        return self
+
+    def fit_transform(self, X, y = None):
+        return resample(X, replace=False, n_samples=self.n_samples, random_state=self.random_state)
+
+    def transform(self, X):
+        return X
