@@ -236,7 +236,7 @@ class BagOfChords2(TransformerMixin, BaseEstimator):
         chord_lists = []
         for i, df in enumerate(X):
             if i % (len(X) // 20) == 0:
-                print(f'Loaded {i} of {len(X)}')
+                logger.info(f'Loaded {i} of {len(X)}')
             chords = self._extract_chords(df)
             chord_lists.append(chords)
         most_common = pd.concat(chord_lists).value_counts()[:self.vocab_size]
