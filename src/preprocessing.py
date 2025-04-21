@@ -89,7 +89,7 @@ class MidiPathToDataFrame(TransformerMixin, BaseEstimator):
     def transform(self, X: List[str]) -> List[pd.DataFrame]:
         dfs = []
         for i, filename in enumerate(X):
-            if i % (len(X) // 20) == 0:
+            if i % max(1, (len(X) // 20)) == 0:
                 logger.info(f'Loaded {i} of {len(X)}')
             dfs.append(load_midi_to_df(self.data_dir / filename))
         return dfs
