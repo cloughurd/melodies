@@ -102,7 +102,6 @@ class PreprocessMidiDataFrame(TransformerMixin, BaseEstimator):
     """
     def __init__(self):
         self.warn_cols = ['note_off', 'polytouch']
-        self.reduce_to_distinct_notes = reduce_to_distinct_notes
 
     def fit(self, X, y=None):
         return self
