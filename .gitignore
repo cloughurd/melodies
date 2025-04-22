@@ -175,3 +175,6 @@ maestro/
 
 #virtual environment
 vmelodies/
+
+# Desktop Services Store
+**/.DS_Store/
