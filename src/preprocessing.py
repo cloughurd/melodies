@@ -127,8 +127,11 @@ class PreprocessMidiDataFrame(TransformerMixin, BaseEstimator):
 
 
 class BagOfNotes(TransformerMixin, BaseEstimator):
-    def __init__(self, normalize: bool = False):
+    def __init__(self, normalize: bool = False, weight_by_duration: bool = False, weight_by_velocity: bool = False, reduce_to_distinct: bool = False):
         self.normalize = normalize
+        self.weight_by_duration = weight_by_duration
+        self.weight_by_velocity = weight_by_velocity
+        self.reduce_to_distinct = reduce_to_distinct
 
     def fit(self, X: List[pd.DataFrame], y=None):
         return self
@@ -136,9 +139,22 @@ class BagOfNotes(TransformerMixin, BaseEstimator):
     def transform(self, X: List[pd.DataFrame]) -> np.ndarray:
         results = []
         for df in X:
-            notes = np.zeros(128)
-            counts_per_note = df.note.value_counts()
-            notes[counts_per_note.index.to_numpy().astype(np.int8)] = counts_per_note.values
+            if self.reduce_to_distinct:
+                notes = np.zeros(12)
+                song_notes = df.note % 12
+            else:
+                notes = np.zeros(128)
+                song_notes = df.note
+            if self.weight_by_velocity or self.weight_by_duration:
+                weights = pd.Series(np.ones(len(df)))
+                if self.weight_by_duration:
+                    weights = weights * df.duration
+                if self.weight_by_velocity:
+                    weights = weights * df.velocity
+                values = weights.groupby(df.note).sum()
+            else:
+                values = song_notes.value_counts()
+            notes[values.index.to_numpy().astype(np.int8)] = values.values
             if self.normalize:
                 notes = notes / np.sum(notes)
             results.append(notes)
@@ -257,7 +273,7 @@ class BagOfChords2(TransformerMixin, BaseEstimator):
     def _extract_chords(self, df: pd.DataFrame) -> List[str]:
         new_chord = df['time_from_start']-df['time_from_start'].shift(1) > self.time_threshold
         chord_id = new_chord.cumsum()
-        return df.groupby(chord_id).apply(lambda g: ','.join(g['note'].sort_values().astype(int).astype(str)))
+        return df.groupby(chord_id).apply(lambda g: ','.join(g['note'].sort_values().drop_duplicates().astype(int).astype(str)))
 
 
 class MidiPathToPrettyMidi(TransformerMixin, BaseEstimator):
