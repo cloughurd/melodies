@@ -166,15 +166,16 @@ class NfIsf(TransformerMixin, BaseEstimator):
     Note frequency - Inverse song frequency
     Like Tf-Idf but for music.
     """
-    def __init__(self):
+    def __init__(self, threshold: float = 0):
         self.bag = BagOfNotes(normalize=True)
+        self.threshold = threshold
 
     def fit(self, X: List[pd.DataFrame], y=None):
         # counts will be Nx128
         counts = self.bag.fit_transform(X)
         # sum number of songs that contain each note
         # +1 to avoid /0 error
-        songs_per_note = np.sum(counts > 0, axis=0, keepdims=True) +1
+        songs_per_note = np.sum(counts > self.threshold, axis=0, keepdims=True) +1
         self.inv_song_freq_ = np.log((counts.shape[0] +1) / songs_per_note)
         return self
 
@@ -243,10 +244,11 @@ class BagOfChords2(TransformerMixin, BaseEstimator):
     Transformer that converts MIDI note dataframes into a fixed-size vector representing the frequency
     of chords (simultaneously played notes) within each song.
     """
-    def __init__(self, time_threshold: int = 30, vocab_size: int = 300, normalize: bool = True):
+    def __init__(self, time_threshold: int = 30, vocab_size: int = 300, normalize: bool = True, reduce_to_distinct: bool = False):
         self.time_threshold = time_threshold
         self.vocab_size = vocab_size
         self.normalize = normalize
+        self.reduce_to_distinct = reduce_to_distinct
 
     def fit(self, X: list[pd.DataFrame], y=None):
         chord_lists = []
@@ -273,7 +275,11 @@ class BagOfChords2(TransformerMixin, BaseEstimator):
     def _extract_chords(self, df: pd.DataFrame) -> List[str]:
         new_chord = df['time_from_start']-df['time_from_start'].shift(1) > self.time_threshold
         chord_id = new_chord.cumsum()
-        return df.groupby(chord_id).apply(lambda g: ','.join(g['note'].sort_values().drop_duplicates().astype(int).astype(str)))
+        if self.reduce_to_distinct:
+            notes = df['note'] % 12
+        else:
+            notes = df['note']
+        return notes.groupby(chord_id).apply(lambda g: ','.join(g.sort_values().drop_duplicates().astype(int).astype(str)))
 
 
 class MidiPathToPrettyMidi(TransformerMixin, BaseEstimator):
