@@ -14,12 +14,30 @@ def evaluate_clusters(cluster: np.ndarray, labels: pd.DataFrame) -> dict:
     return scores
 
 def plot_with_label(embeddings: np.ndarray, labels: pd.Series, title: str):
-    cmap = plt.colormaps.get_cmap('tab20')
-    for i, g in enumerate(labels.dropna().unique()):
+    cmap = plt.cm.get_cmap('tab20', 20)
+    for i, g in enumerate(sorted(labels.dropna().unique())):
         if pd.isna(g):
             continue
         mask = labels == g
-        plt.scatter(embeddings[mask, 0], embeddings[mask, 1], label=g, color=cmap(i))
+        marker = 'o'
+        if i > 19:
+            marker = '*'
+        plt.scatter(embeddings[mask, 0], embeddings[mask, 1], label=g, color=cmap(i % 20), marker=marker)
+    plt.legend(bbox_to_anchor=(1.05, 1))
+    plt.title(title)
+    plt.show()
+
+def plot_with_label_continuous(embeddings: np.ndarray, labels: pd.Series, title: str):
+    # plt.scatter(embeddings[labels.notna(), 0], embeddings[labels.notna(), 1], c=labels.dropna())
+    cmap = plt.cm.get_cmap('viridis', labels.nunique())
+    for i, g in enumerate(sorted(labels.dropna().unique())):
+        if pd.isna(g):
+            continue
+        mask = labels == g
+        marker = 'o'
+        if i > 19:
+            marker = '*'
+        plt.scatter(embeddings[mask, 0], embeddings[mask, 1], label=g, color=cmap(i % 20), marker=marker)
     plt.legend(bbox_to_anchor=(1.05, 1))
     plt.title(title)
     plt.show()
